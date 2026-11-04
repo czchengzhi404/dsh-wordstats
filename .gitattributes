@@ -1,0 +1,4 @@
+# 统一 LF，避免 Windows 提交把整个仓库染成 CRLF
+* text=auto eol=lf
+*.zstd binary
+*.png binary

@@ -1,0 +1,16 @@
+# 运行产物
+report.md
+stats.json
+last-run.json
+out/
+
+# 会话数据绝不能进仓库
+*.jsonl.zstd
+*.jsonl
+sessions/
+
+# 常规
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

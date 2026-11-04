@@ -1,0 +1,32 @@
+{
+  "name": "dsh-session-word-stats",
+  "version": "0.1.0",
+  "description": "统计 DSH（DeepSeek Harness）会话里你自己输入的高频词、短语和口癖",
+  "type": "module",
+  "bin": {
+    "session-word-stats": "scripts/session-word-stats.mjs"
+  },
+  "scripts": {
+    "start": "node scripts/session-word-stats.mjs",
+    "test": "node --test test/"
+  },
+  "files": [
+    "scripts/",
+    "test/",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "session",
+    "word-frequency",
+    "chinese",
+    "skill"
+  ],
+  "license": "MIT"
+}
