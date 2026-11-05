@@ -1,6 +1,6 @@
 # 会话输入词频统计 · dsh-wordstats
 
-[![test](https://github.com/YOUR_NAME/dsh-wordstats/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_NAME/dsh-wordstats/actions/workflows/test.yml)
+[![test](https://github.com/czchengzhi404/dsh-wordstats/actions/workflows/test.yml/badge.svg)](https://github.com/czchengzhi404/dsh-wordstats/actions/workflows/test.yml)
 
 > **隐私**：本工具**只读**本机会话日志，不联网、不上传、不修改任何文件。所有计算都在你机器上完成，输出只有你自己能看到的报告。
 
@@ -148,6 +148,4 @@ CI（`.github/workflows/test.yml`）在每次 push 和 PR 时把同一套测试�
 
 ## License
 
-MIT，见 [LICENSE](LICENSE)。版权行现在写的是 "The dsh-wordstats authors"，可以换成你自己的名字。
-
-> **push 前两处待替换**：顶部徽章地址里的 `YOUR_NAME` 换成你的 GitHub 用户名或组织名（换成真实地址后徽章才会亮，否则是破图）；以及上面提到的版权行。
+MIT，见 [LICENSE](LICENSE)。
