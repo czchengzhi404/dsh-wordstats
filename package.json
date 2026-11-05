@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node scripts/session-word-stats.mjs",
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "test:local": "node test/smoke.test.mjs && node test/equivalence.test.mjs"
   },
   "files": [
     "scripts/",
