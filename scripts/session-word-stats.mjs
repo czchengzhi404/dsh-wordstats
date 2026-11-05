@@ -94,8 +94,9 @@ export function decodeWorkspace(dir) {
 
 /**
  * 从会话目录里抽出用户本人输入的消息。
- * @returns {{messages:Array, sourceKinds:Map, scannedFiles:number,
- *            skippedSubagents:number, unsupported:Array<{version:number,path:string}>}}
+ * @returns {{messages:Array, sourceKinds:Map, versions:Map, scannedFiles:number,
+ *            skippedSubagents:number, unsupported:Array<{version:number,path:string}>,
+ *            formTaggedUsers:number, imageOnlyDropped:number, withImage:number}}
  */
 export function collectMessages({
   sessionsRoot,
@@ -109,6 +110,10 @@ export function collectMessages({
   const unsupported = [];
   let scannedFiles = 0;
   let skippedSubagents = 0;
+  // 引擎侧的可选统计：图片消息、以及"kind=user 却带 form"的异常
+  let formTaggedUsers = 0;
+  let imageOnlyDropped = 0;
+  let withImage = 0;
 
   for (const f of files) {
     const parts = f.path.split(/[\\/]/);
@@ -161,21 +166,41 @@ export function collectMessages({
       const kind = d.source?.kind ?? "<none>";
       sourceKinds.set(kind, (sourceKinds.get(kind) ?? 0) + 1);
       if (kind !== "user") continue;
+      // kind=user 却带 form，说明引擎开始用 form 标注注入内容却仍留了 user 这个 kind。
+      // 此时单靠 kind 过滤会漏掉注入文本，必须让人知道。
+      if (d.source?.form) formTaggedUsers++;
       if (d.id) {
         if (seen.has(d.id)) continue; // 同一条消息在 inbox/spliced 与 user/message 里各出现一次
         seen.add(d.id);
       }
-      const txt = (d.content ?? [])
+      // 新版会往 content 里放 image 块。只统计文字；纯图片消息没有文字可数，
+      // 记一笔再从词频里排除，别让它静默消失。
+      const blocks = d.content ?? [];
+      if (blocks.some((c) => c.type === "image")) withImage++;
+      const txt = blocks
         .filter((c) => c.type === "text")
         .map((c) => c.text)
         .join("\n")
         .trim();
-      if (!txt) continue;
+      if (!txt) {
+        if (blocks.some((c) => c.type === "image")) imageOnlyDropped++;
+        continue;
+      }
       messages.push({ sessionId, workspace, time: o.time ?? null, text: txt });
     }
   }
 
-  return { messages, sourceKinds, versions, scannedFiles, skippedSubagents, unsupported };
+  return {
+    messages,
+    sourceKinds,
+    versions,
+    scannedFiles,
+    skippedSubagents,
+    unsupported,
+    formTaggedUsers,
+    imageOnlyDropped,
+    withImage,
+  };
 }
 
 // ---------- 清洗 ----------
@@ -230,12 +255,21 @@ export function analyze({
   top = 30,
   includeSubagents = false,
 } = {}) {
-  const { messages, sourceKinds, versions, scannedFiles, skippedSubagents, unsupported } =
-    collectMessages({
-      sessionsRoot,
-      workspaceFilter,
-      includeSubagents,
-    });
+  const {
+    messages,
+    sourceKinds,
+    versions,
+    scannedFiles,
+    skippedSubagents,
+    unsupported,
+    formTaggedUsers,
+    imageOnlyDropped,
+    withImage,
+  } = collectMessages({
+    sessionsRoot,
+    workspaceFilter,
+    includeSubagents,
+  });
 
   const filtered = since
     ? messages.filter((m) => m.time && new Date(m.time).toISOString().slice(0, 10) >= since)
@@ -400,6 +434,9 @@ export function analyze({
     autoContinuations,
     pmiApplied: pmiOn,
     versions: Object.fromEntries([...versions.entries()].sort((a, b) => a[0] - b[0])),
+    formTaggedUsers,
+    imageOnlyDropped,
+    withImage,
     skippedSubagents,
     includeSubagents,
     unsupported,
@@ -479,8 +516,7 @@ export function renderReport(data) {
     md.push("");
     md.push("| source.kind | 记录数 |");
     md.push("|---|---|");
-    kindRows.slice(0, 12).forEach(([k, v]) => md.push(`| ${k} | ${v} |`));
-    if (kindRows.length > 12) md.push(`| （其余 ${kindRows.length - 12} 种） | |`);
+    kindRows.forEach(([k, v]) => md.push(`| ${k} | ${v} |`));
     md.push("");
     md.push(
       `> 出现不认识的 kind 说明 DSH 新增了注入类型，统计口径可能失真——请核对上面这张表。`
@@ -488,10 +524,33 @@ export function renderReport(data) {
     md.push("");
   }
 
+  // kind=user 却带 source.form：引擎改用 form 标注注入内容的信号，这条口径会失效
+  if (data.formTaggedUsers) {
+    md.push(
+      `> ⚠️ 有 **${data.formTaggedUsers}** 条 \`kind="user"\` 的消息带了 \`source.form\` 标记。`
+    );
+    md.push(
+      `> 新版 DSH 用 \`form\` 区分注入种类（snapshot / notice / relay / catalog / instructions），`
+    );
+    md.push(
+      `> 正常用户输入不带这个字段。它们被当成了用户输入计入统计，词榜可能被注入文本污染。`
+    );
+    md.push(`> 请开 issue 附上你的 DSH 版本，这一条口径需要跟着引擎改。`);
+    md.push("");
+  }
+
   md.push(
     `其中 ${data.shortMessages} 条消息不超过 8 个字符（${pct(data.shortMessages)} 的消息是"继续""好"这类短指令）；${data.autoContinuations} 条是界面「继续」按钮触发的自动续跑消息（已剥掉引擎附言，只留开头的"继续"）。`
   );
   md.push("");
+  if (data.withImage) {
+    md.push(
+      `另有 ${data.withImage} 条消息带图片，文字部分照常计入${
+        data.imageOnlyDropped ? `；其中 ${data.imageOnlyDropped} 条纯图片没有文字，无法计入词频` : ""
+      }。`
+    );
+    md.push("");
+  }
   if (!data.pmiApplied) {
     md.push(`> 语料不足 5000 汉字，未启用 PMI 跨词碎片过滤，词榜可能混入"成一""上一"这类碎片。数据够多时会自动启用。`);
     md.push("");

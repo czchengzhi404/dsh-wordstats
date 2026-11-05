@@ -43,16 +43,20 @@ node scripts/session-word-stats.mjs --top 30 --out report.md
 
 零依赖，只需要 Node 22.15+（用到 `node:zlib` 内置的 zstd；低版本会直接提示升级）。
 
-## 四个口径陷阱
+## 口径陷阱
 
-这四条任何一条漏掉，结果就完全不是"用户输入"了。脚本已经处理，改脚本时别退回去：
+下面每一条漏掉，结果就完全不是"用户输入"了。脚本已经处理，改脚本时别退回去：
 
 1. **会话是 append-only 的多帧 zstd 日志**（`session.v4.jsonl.zstd`）。Node 的 `createZstdDecompress` 只吐第一帧就停，剩下的记录全丢。必须按帧 magic `28 b5 2f fd` 切开后逐帧 `zstdDecompressSync`。
-2. **只有 `type="user/message"` 且 `data.source.kind==="user"` 才是人打的字。** 同一类型记录下其它 kind 全是引擎注入：`runtime-context`、`skill-catalog`、`time-context`、`team-message`、`memory-context`、`compact-checkpoint`……
+2. **只有 `type="user/message"` 且 `data.source.kind==="user"` 才是人打的字。** 同一类型记录下其它 kind 全是引擎注入：`runtime-context`、`skill-catalog`、`time-context`、`team-message`、`memory-context`、`compact-checkpoint`……（DSH 0.2.2 实测有 19 种 kind。）
 3. **`origin==="subagent"` 的会话整条排除。** 子代理会话里，Lead 用 `send_message` 派下去的任务也记成 `kind="user"`，不排掉就会把别人的长 prompt 统计成"你的输入"。
 4. **界面「继续」按钮同样落成 `kind="user"` 消息**，正文是引擎措辞：`继续。宿主在你上一轮运行期间重启了; … (上一步工具「pwsh」可能未完成, 先确认状态再继续, 不要重复执行)`。不剥离的话 `工具/状态/确认/执行/重复` 会霸榜。脚本把这类消息压成「继续」并单独计数（报告末尾会说明有几条）。
+5. **同一条消息会在 `user/message` 与 `agent/inbox/spliced` 里各出现一次**，按 `data.id` 去重。实测 149 个会话文件里有 2054 个重复 id，不去重会把消息数虚报一倍。
+6. **`content` 数组里可能有 `image` 块。** 只统计 `text` 块：图文混排保留文字，纯图片因为没有文字可数而被排除，但报告会说明有几条这样的消息，不让它静默消失。
 
 另外**版本**：v3 与 v4 记录结构一致，两个都读；白名单（脚本里 `SUPPORTED_VERSIONS`）之外的版本——比如 DSH 将来出 v5——必须显式警告并跳过，让脚本以退出码 2 + 明确提示收场。绝不能静默算成 0 条，那会让用户以为"我没说过话"。
+
+**`source.form` 是新版的哨兵字段。** DSH 0.2.2 开始给注入消息打 `form`（`snapshot` / `notice` / `relay` / `catalog` / `instructions`），而正常用户输入不带这个字段。如果哪天出现 `kind="user"` 又带 `form` 的消息，说明引擎改用 form 标注注入却仍留着 user 这个 kind——此时单靠 kind 过滤就会漏掉注入文本。脚本会把这类消息计数并写进报告，看到这条警告就该改口径了。
 
 ## 中文分词的做法
 
@@ -70,7 +74,17 @@ PMI 在小语料上系统性偏低（十几个字的语料里"继续"只有 0.69
 node test/smoke.test.mjs
 ```
 
-14 个用例钉住上面每个坑（多帧解压、注入过滤、子代理排除、版本白名单、工作区解码、`--since`、CLI 退出码），用内存现造的脱敏 fixture，不碰真实会话。某个用例变红就说明口径被改坏了。
+16 个用例钉住上面每个坑（多帧解压、注入过滤、子代理排除、图片消息、form 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码），用内存现造的脱敏 fixture，不碰真实会话。某个用例变红就说明口径被改坏了。
+
+## DSH 升级后怎么核对
+
+DSH 一升级，先跑一遍真实数据，重点看三处：
+
+1. 报告开头的**版本分布**（`v3 × N、v4 × M`）——出现新版本号就是格式变了。
+2. **「被过滤掉的注入内容」**表——出现不认识的 `source.kind` 就是新增了注入类型。
+3. 报告里有没有 **`source.form` 警告**——有就说明 kind 过滤这条路要重做。
+
+这三处都正常，统计结果就可以信。已实测 DSH `0.2.2-rc.1`。
 
 ## 读结果
 

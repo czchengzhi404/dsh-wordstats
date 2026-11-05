@@ -82,18 +82,31 @@ PMI 在小语料上系统性偏低，所以汉字数不足 5000 时自动关掉�
 ## 测试
 
 ```bash
-node test/smoke.test.mjs      # 直接跑，14 个用例
+node test/smoke.test.mjs      # 直接跑，16 个用例
 node --test test/             # 或走 Node 测试运行器
 ```
 
-测试用**内存里现造的脱敏 fixture**（`test/fixture.mjs`），结构照抄真实会话，内容全是假的，仓库里不含任何真实对话。断言覆盖：多帧解压、注入过滤、子代理排除、版本白名单、工作区解码、`--since`、CLI 退出码。
+测试用**内存里现造的脱敏 fixture**（`test/fixture.mjs`），结构照抄真实会话，内容全是假的，仓库里不含任何真实对话。断言覆盖：多帧解压、注入过滤、子代理排除、图片消息、`source.form` 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码。
 
 CI（`.github/workflows/test.yml`）在每次 push 和 PR 时把同一套测试跑在 **Linux + Windows × Node 22 / 24** 四组环境上，并额外验证一次空会话目录不许崩。之所以要跨平台跑：工作区路径解码是按 Windows 目录形态写的，Linux 上跑一遍才能确认统计逻辑没被平台假设绑住。
 
 ## 兼容性
 
 - **Node ≥ 22.15**（内置 zstd 需要）。更低版本会直接提示升级，不需要 `npm install` 任何东西。
-- **会话格式随 DSH 演进**：`source.kind`、`origin`、目录编码都是内部实现，升级后可能失效。会尽力跟进但不做保证——跑出异常结果时，先看报告里的 kind 表和版本号。
+- **已在 DSH `0.2.2-rc.1` 实测通过**（会话格式 v3 / v4）。会话格式随 DSH 演进，`source.kind`、`source.form`、`origin`、目录编码都是内部实现，升级后可能失效。会尽力跟进但不做保证。
+
+### DSH 升级后怎么自查
+
+别等它报错，跑一遍真实数据，看三个地方：
+
+| 看哪里 | 正常 | 出问题说明什么 |
+|---|---|---|
+| 报告开头版本分布 | `v3 × N、v4 × M` | 冒出未见过的版本号 → 格式变了，改 `SUPPORTED_VERSIONS` 并核对结构 |
+| 「被过滤掉的注入内容」表 | 都是眼熟的 kind | 出现陌生 kind → 新增注入类型，确认它不是用户输入 |
+| 有没有 `source.form` 警告 | 没有 | 有 → 引擎改用 `form` 标注注入却仍留 `kind="user"`，kind 过滤失效，必须改口径 |
+
+`0.2.2` 起注入消息开始带 `source.form`（`snapshot` / `notice` / `relay` / `catalog` / `instructions`），而用户输入不带。脚本把这个字段当哨兵用：一旦发现 `kind="user"` 也带了它，就在报告里报警而不是悄悄算错。
+
 - 工作区路径解码（`--E-~732B~732B~--` → `E:\猫猫迷宫`）只按 Windows 目录形态验证过；Linux/macOS 上只影响路径显示，不影响统计数字。
 
 ## License

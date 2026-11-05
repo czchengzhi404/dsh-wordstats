@@ -36,6 +36,37 @@ const userMsg = (id, text, kind = "user", time = 1793000001000) => ({
   surfaceOp: "append",
 });
 
+/** 新版 DSH 的注入写法：kind 仍是 user，靠 source.form 区分类别（未来兼容性用） */
+const formTaggedMsg = (id, text, form, time = 1793000003000) => ({
+  type: "user/message",
+  seq: 2,
+  time,
+  data: {
+    content: [{ type: "text", text }],
+    source: { kind: "user", form },
+    role: "user",
+    id,
+  },
+  surfaceOp: "append",
+});
+
+/** 新版 DSH 会把图片放进 content 块 */
+const imageMsg = (id, text, time = 1793000004000) => ({
+  type: "user/message",
+  seq: 3,
+  time,
+  data: {
+    content: [
+      ...(text ? [{ type: "text", text }] : []),
+      { type: "image", mediaType: "image/png", data: "iVBORw0KGgo=" },
+    ],
+    source: { kind: "user" },
+    role: "user",
+    id,
+  },
+  surfaceOp: "append",
+});
+
 const assistantMsg = () => ({
   type: "assistant/message",
   seq: 9,
@@ -56,6 +87,8 @@ export const SUBAGENT_SESSION = "session-sub";
 export const OLD_SESSION = "session-old-v3";
 /** v5：认不出来的将来格式，必须明确报警而不是算成 0 条 */
 export const FUTURE_SESSION = "session-future-v5";
+/** 新版注入写法：kind 仍是 user，靠 source.form 区分；必须计入但要报警 */
+export const FORM_TAGGED_SESSION = "session-formtagged";
 
 export function buildFixture(root) {
   // 主会话（origin=user）：只有 m1 / auto / m2 算用户输入
@@ -74,7 +107,17 @@ export function buildFixture(root) {
     userMsg("m2", "帮我生成一个 Godot 项目", "user", 1793000002000),
     // 同一个 id 在 inbox/spliced 里重复出现 → 去重
     userMsg("m2", "帮我生成一个 Godot 项目", "user", 1793000002000),
+    // 新版：图文混排，文字部分照常计入
+    imageMsg("img1", "看一下这个界面"),
+    // 新版：纯图片没有文字，无法计入词频，但要计数告知
+    imageMsg("img2", ""),
     assistantMsg(),
+  ]);
+
+  // 注入内容的新写法：kind=user 却带 source.form；正确做法是照样计入但必须报警
+  writeSession(root, "--E-formtagged--", FORM_TAGGED_SESSION, [
+    header(FORM_TAGGED_SESSION),
+    formTaggedMsg("ft1", "Current runtime context. This snapshot supersedes earlier snapshots.", "snapshot"),
   ]);
 
   // 子代理会话：Lead 派下去的任务也记成 kind="user"，默认必须整条排除
