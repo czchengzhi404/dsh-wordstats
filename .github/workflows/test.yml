@@ -1,0 +1,38 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22 = 声明的最低支持版本（内置 zstd 需要 22.15+），24 = 当前稳定版
+        # 同时跑 Windows 和 Linux：工作区路径解码只按 Windows 形态验证过，
+        # 跨平台跑一遍才能确认统计逻辑没有被平台假设绑住。
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 跑测试
+        run: node --test test/
+
+      - name: CLI 冒烟（空会话目录不许崩）
+        run: node scripts/session-word-stats.mjs --sessions ./does-not-exist --top 3

@@ -1,5 +1,7 @@
 # 会话输入词频统计 · dsh-session-word-stats
 
+[![test](https://github.com/YOUR_NAME/dsh-session-word-stats/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_NAME/dsh-session-word-stats/actions/workflows/test.yml)
+
 > **隐私**：本工具**只读**本机会话日志，不联网、不上传、不修改任何文件。所有计算都在你机器上完成，输出只有你自己能看到的报告。
 
 把 [DSH](https://github.com/deepseek-ai/deepseek-harness)（DeepSeek Harness）会话日志里**你自己亲手打的字**抽出来做词频分析的小工具。零依赖，一条命令出报告。
@@ -86,6 +88,8 @@ node --test test/             # 或走 Node 测试运行器
 
 测试用**内存里现造的脱敏 fixture**（`test/fixture.mjs`），结构照抄真实会话，内容全是假的，仓库里不含任何真实对话。断言覆盖：多帧解压、注入过滤、子代理排除、版本白名单、工作区解码、`--since`、CLI 退出码。
 
+CI（`.github/workflows/test.yml`）在每次 push 和 PR 时把同一套测试跑在 **Linux + Windows × Node 22 / 24** 四组环境上，并额外验证一次空会话目录不许崩。之所以要跨平台跑：工作区路径解码是按 Windows 目录形态写的，Linux 上跑一遍才能确认统计逻辑没被平台假设绑住。
+
 ## 兼容性
 
 - **Node ≥ 22.15**（内置 zstd 需要）。更低版本会直接提示升级，不需要 `npm install` 任何东西。
@@ -95,3 +99,5 @@ node --test test/             # 或走 Node 测试运行器
 ## License
 
 MIT，见 [LICENSE](LICENSE)。版权行现在写的是 "The dsh-session-word-stats authors"，可以换成你自己的名字。
+
+> **push 前两处待替换**：顶部徽章地址里的 `YOUR_NAME` 换成你的 GitHub 用户名或组织名（换成真实地址后徽章才会亮，否则是破图）；以及上面提到的版权行。
