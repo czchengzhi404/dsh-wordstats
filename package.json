@@ -1,13 +1,13 @@
 {
-  "name": "dsh-session-word-stats",
+  "name": "dsh-wordstats",
   "version": "0.1.0",
   "description": "统计 DSH（DeepSeek Harness）会话里你自己输入的高频词、短语和口癖",
   "type": "module",
   "bin": {
-    "session-word-stats": "scripts/session-word-stats.mjs"
+    "dsh-wordstats": "scripts/dsh-wordstats.mjs"
   },
   "scripts": {
-    "start": "node scripts/session-word-stats.mjs",
+    "start": "node scripts/dsh-wordstats.mjs",
     "test": "node --test test/",
     "test:local": "node test/smoke.test.mjs && node test/equivalence.test.mjs"
   },

@@ -35,4 +35,4 @@ jobs:
         run: node --test test/
 
       - name: CLI 冒烟（空会话目录不许崩）
-        run: node scripts/session-word-stats.mjs --sessions ./does-not-exist --top 3
+        run: node scripts/dsh-wordstats.mjs --sessions ./does-not-exist --top 3

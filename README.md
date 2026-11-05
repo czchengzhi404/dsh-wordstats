@@ -1,6 +1,6 @@
-# 会话输入词频统计 · dsh-session-word-stats
+# 会话输入词频统计 · dsh-wordstats
 
-[![test](https://github.com/YOUR_NAME/dsh-session-word-stats/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_NAME/dsh-session-word-stats/actions/workflows/test.yml)
+[![test](https://github.com/YOUR_NAME/dsh-wordstats/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_NAME/dsh-wordstats/actions/workflows/test.yml)
 
 > **隐私**：本工具**只读**本机会话日志，不联网、不上传、不修改任何文件。所有计算都在你机器上完成，输出只有你自己能看到的报告。
 
@@ -23,20 +23,20 @@
 | 4 | 项目 | 38 | 71 | 3% |
 | 5 | 读取 | 38 | 40 | 3% |
 
-报告共六个榜（高频词 / 高频短语 / 消息开头惯用语 / 反复输入的整句 / 高频英文技术词 / 工作区与月份分布），外加一张"被过滤掉的注入内容"表，末尾一句画像（短指令占比、自动续跑条数）。
+报告共六个榜（高频词 / 高频短语 / 消息开头惯用语 / 反复输入的整句 / 高频英文技术词 / 工作区与月份分布），外加一张"被过滤掉的注入内容"表，末尾一句画像。
 
 ## 用法
 
 ```bash
 # 直接跑，报告打到 stdout
-node scripts/session-word-stats.mjs
+node scripts/dsh-wordstats.mjs
 
 # 写到文件
-node scripts/session-word-stats.mjs --top 30 --out report.md
+node scripts/dsh-wordstats.mjs --top 30 --out report.md
 
 # 只看某个项目 / 某段时间
-node scripts/session-word-stats.mjs --workspace dshskill
-node scripts/session-word-stats.mjs --since 2026-10-01
+node scripts/dsh-wordstats.mjs --workspace dshskill
+node scripts/dsh-wordstats.mjs --since 2026-10-01
 ```
 
 | 参数 | 作用 |
@@ -53,7 +53,7 @@ node scripts/session-word-stats.mjs --since 2026-10-01
 整个仓库就是一个 skill 目录（`SKILL.md` 在根上）。克隆进 skills 目录即可被 DSH 识别：
 
 ```bash
-git clone <this-repo> ~/.dsh/skills/session-word-stats
+git clone <this-repo> ~/.dsh/skills/dsh-wordstats
 ```
 
 之后直接说"统计一下我最常说什么"就会触发。
@@ -79,7 +79,23 @@ git clone <this-repo> ~/.dsh/skills/session-word-stats
 
 PMI 在小语料上系统性偏低，所以汉字数不足 5000 时自动关掉这道闸（报告里会注明）。
 
-## 性能
+## 一个容易踩的口径坑：界面「继续」按钮
+
+DSH 界面的「继续」按钮也会落成一条 `kind="user"` 的消息，正文由引擎写入（`继续。宿主在你上一轮运行期间重启了; …`），用户只是点了一下。
+
+在重度使用的会话里，这类消息能占总量的 **三到四成**。如果照常计入词频，「继续」会被凭空放大数倍、稳居第一，把真实用词全挤出榜单——报告看起来完全正常，结论却是错的。
+
+所以本工具的处理是：
+
+- **不计入任何词榜**。词频只反映你真敲下的字。
+- **单独计数并在报告开头说明**。它在"我多常让 agent 自己推进"这个维度上是真信号，不该被丢掉，只是不该混进词频。
+
+```text
+> 486 条消息（37%）是界面「继续」按钮触发的，正文由引擎写入，你只点了一下。
+> 它们不计入任何词榜（下面 829 条是真人写下的），否则「继续」会被凭空放大数倍。
+```
+
+同理，消息里形如 `(上一步工具「pwsh」可能未完成, 先确认状态再继续, 不要重复执行)` 的引擎附言也会被剥离——不剥离的话 `工具 / 状态 / 确认 / 执行 / 重复` 这些词会把榜单占满。
 
 166 个会话文件、136 MB 压缩（解压后 480 MB）、90,444 帧 —— **约 2.1 秒**。
 
@@ -100,13 +116,13 @@ PMI 在小语料上系统性偏低，所以汉字数不足 5000 时自动关掉�
 ## 测试
 
 ```bash
-npm run test:local            # 本地：直接跑两个测试文件（18 个用例）
+npm run test:local            # 本地：直接跑两个测试文件（19 个用例）
 npm test                      # 走 Node 测试运行器（CI 用这个）
 ```
 
 测试用**内存里现造的脱敏 fixture**（`test/fixture.mjs`），结构照抄真实会话，内容全是假的，仓库里不含任何真实对话。
 
-- `smoke.test.mjs`（16 个）钉住每条统计口径：多帧解压、注入过滤、子代理排除、图片消息、`source.form` 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码。
+- `smoke.test.mjs`（17 个）钉住每条统计口径：多帧解压、注入过滤、子代理排除、**按钮消息不进词榜**、图片消息、`source.form` 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码。
 - `equivalence.test.mjs`（2 个）钉住性能优化不改结果：优化路径与全量解压路径逐条比对。
 
 CI（`.github/workflows/test.yml`）在每次 push 和 PR 时把同一套测试跑在 **Linux + Windows × Node 22 / 24** 四组环境上，并额外验证一次空会话目录不许崩。之所以要跨平台跑：工作区路径解码是按 Windows 目录形态写的，Linux 上跑一遍才能确认统计逻辑没被平台假设绑住。
@@ -132,6 +148,6 @@ CI（`.github/workflows/test.yml`）在每次 push 和 PR 时把同一套测试�
 
 ## License
 
-MIT，见 [LICENSE](LICENSE)。版权行现在写的是 "The dsh-session-word-stats authors"，可以换成你自己的名字。
+MIT，见 [LICENSE](LICENSE)。版权行现在写的是 "The dsh-wordstats authors"，可以换成你自己的名字。
 
 > **push 前两处待替换**：顶部徽章地址里的 `YOUR_NAME` 换成你的 GitHub 用户名或组织名（换成真实地址后徽章才会亮，否则是破图）；以及上面提到的版权行。

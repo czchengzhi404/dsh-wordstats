@@ -1,5 +1,5 @@
 ---
-name: session-word-stats
+name: dsh-wordstats
 description: 统计你在 DSH 全部会话里最常输入的词、短语和口癖。当用户问「我最常说什么」「统计我的输入词频」「我说话有什么规律 / 口癖」「分析我所有会话」「我平时都让 agent 干什么」，或要基于历史会话出输入习惯报告时使用。
 ---
 
@@ -27,7 +27,7 @@ description: 统计你在 DSH 全部会话里最常输入的词、短语和口�
 ## 跑
 
 ```bash
-node scripts/session-word-stats.mjs --top 30 --out report.md
+node scripts/dsh-wordstats.mjs --top 30 --out report.md
 ```
 
 默认扫 `~/.dsh/sessions`；不给 `--out` 就直接把报告打到 stdout。
@@ -50,7 +50,7 @@ node scripts/session-word-stats.mjs --top 30 --out report.md
 1. **会话是 append-only 的多帧 zstd 日志**（`session.v4.jsonl.zstd`）。Node 的 `createZstdDecompress` 只吐第一帧就停，剩下的记录全丢。必须按帧 magic `28 b5 2f fd` 切开后逐帧 `zstdDecompressSync`。
 2. **只有 `type="user/message"` 且 `data.source.kind==="user"` 才是人打的字。** 同一类型记录下其它 kind 全是引擎注入：`runtime-context`、`skill-catalog`、`time-context`、`team-message`、`memory-context`、`compact-checkpoint`……（DSH 0.2.2 实测有 19 种 kind。）
 3. **`origin==="subagent"` 的会话整条排除。** 子代理会话里，Lead 用 `send_message` 派下去的任务也记成 `kind="user"`，不排掉就会把别人的长 prompt 统计成"你的输入"。
-4. **界面「继续」按钮同样落成 `kind="user"` 消息**，正文是引擎措辞：`继续。宿主在你上一轮运行期间重启了; … (上一步工具「pwsh」可能未完成, 先确认状态再继续, 不要重复执行)`。不剥离的话 `工具/状态/确认/执行/重复` 会霸榜。脚本把这类消息压成「继续」并单独计数（报告末尾会说明有几条）。
+4. **界面「继续」按钮同样落成 `kind="user"` 消息**，正文是引擎措辞：`继续。宿主在你上一轮运行期间重启了; … (上一步工具「pwsh」可能未完成, 先确认状态再继续, 不要重复执行)`。重度使用的会话里这类能占三四成，**照常计入会把「继续」放大数倍、稳居第一，把真实用词全挤出榜单，而报告看起来完全正常**。处理：不计入任何词榜（只统计你真敲的字），单独计数并在报告开头说明——它在"多常让 agent 自己推进"这个维度上是真信号，只是不该混进词频。
 5. **同一条消息会在 `user/message` 与 `agent/inbox/spliced` 里各出现一次**，按 `data.id` 去重。实测 149 个会话文件里有 2054 个重复 id，不去重会把消息数虚报一倍。
 6. **`content` 数组里可能有 `image` 块。** 只统计 `text` 块：图文混排保留文字，纯图片因为没有文字可数而被排除，但报告会说明有几条这样的消息，不让它静默消失。
 
@@ -84,7 +84,7 @@ PMI 在小语料上系统性偏低（十几个字的语料里"继续"只有 0.69
 node test/smoke.test.mjs && node test/equivalence.test.mjs
 ```
 
-- **smoke（16 个）**：钉住每条口径——多帧解压、注入过滤、子代理排除、图片消息、form 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码。
+- **smoke（17 个）**：钉住每条口径——多帧解压、注入过滤、子代理排除、按钮消息不进词榜、图片消息、form 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码。
 - **equivalence（2 个）**：保留一份最朴素的参考实现（全量解压、全量解析），与优化路径逐条比对。**为了快而少统计几条消息，报告看起来照样正常**，所以这条测试是性能改动的安全网，删不得。
 
 两个都用内存现造的脱敏 fixture，不碰真实会话。某个用例变红就说明口径被改坏了。

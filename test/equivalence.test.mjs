@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { zstdDecompressSync } from "node:zlib";
 
-import { collectMessages, MAGIC, SUPPORTED_VERSIONS } from "../scripts/session-word-stats.mjs";
+import { collectMessages, MAGIC, SUPPORTED_VERSIONS } from "../scripts/dsh-wordstats.mjs";
 import { buildFixture } from "./fixture.mjs";
 
 let root;

@@ -107,6 +107,8 @@ export function buildFixture(root) {
     userMsg("m2", "帮我生成一个 Godot 项目", "user", 1793000002000),
     // 同一个 id 在 inbox/spliced 里重复出现 → 去重
     userMsg("m2", "帮我生成一个 Godot 项目", "user", 1793000002000),
+    // 真人打的「继续」（不是按钮）→ 必须进词榜，且只算这一条 + m1
+    userMsg("m3", "继续推进", "user", 1793000002500),
     // 新版：图文混排，文字部分照常计入
     imageMsg("img1", "看一下这个界面"),
     // 新版：纯图片没有文字，无法计入词频，但要计数告知

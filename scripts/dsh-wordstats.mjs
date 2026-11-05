@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * session-word-stats — 统计 DSH 全部会话中「用户本人输入」的词频。
+ * dsh-wordstats — 统计 DSH 全部会话中「用户本人输入」的词频。
  *
  * 数据源：<sessionsRoot>/<workspace>/<sessionId>/session.v4.jsonl.zstd
  *   每条记录一帧 zstd（append-only），Node 的流式解压只吐第一帧，
@@ -13,7 +13,7 @@
  *      skill-catalog / team-message / time-context …）都是引擎注入的上下文。
  *
  * 用法：
- *   node session-word-stats.mjs [--sessions <dir>] [--workspace <substr>]
+ *   node dsh-wordstats.mjs [--sessions <dir>] [--workspace <substr>]
  *                               [--since YYYY-MM-DD] [--top N]
  *                               [--include-subagents]
  *                               [--out <report.md>] [--json <data.json>]
@@ -350,23 +350,26 @@ export function analyze({
     ? messages.filter((m) => m.time && new Date(m.time).toISOString().slice(0, 10) >= since)
     : messages;
 
+  // 界面「继续」按钮产生的消息：正文由引擎写入，用户只点了一下，不算"输入的词语"。
+  // 但从"我多常让 agent 自己推进"这个角度看它又是真信号，所以单独计数、不进词频。
   let autoContinuations = 0;
   for (const m of filtered) {
     if (AUTO_CONTINUE.test(m.text)) {
       autoContinuations++;
-      m.text = "继续"; // 整条都是引擎措辞，用户只是点了「继续」
+      m.auto = true; // 标记后，下方所有内容分析都会跳过它
+      m.text = "继续";
     } else {
       m.text = cleanUserText(m.text);
     }
   }
+  const human = filtered.filter((m) => !m.auto && m.text);
 
-  // --- 中文 n-gram ---
+  // --- 中文 n-gram（只统计真人写下的字） ---
   const tf = new Map(); // n-gram -> 总出现次数
   const df = new Map(); // n-gram -> 出现在多少条消息中
   let hanChars = 0;
 
-  for (const m of filtered) {
-    if (!m.text) continue;
+  for (const m of human) {
     const prose = stripCode(m.text);
     const local = new Set();
     for (const run of prose.match(/[\u4e00-\u9fa5]+/g) ?? []) {
@@ -431,7 +434,7 @@ export function analyze({
 
   // --- 消息开头惯用语（前 2 字，同前缀自然合并） ---
   const openerMap = new Map();
-  for (const m of filtered) {
+  for (const m of human) {
     const run = stripCode(m.text).trim().match(/^[\u4e00-\u9fa5]+/)?.[0];
     if (run && run.length >= 2) {
       const key = run.slice(0, 2);
@@ -446,7 +449,7 @@ export function analyze({
 
   // --- 反复输入的整句 ---
   const lineMap = new Map();
-  for (const m of filtered) {
+  for (const m of human) {
     for (const raw of stripCode(m.text).split(/[\n\r]+/)) {
       const s = raw.trim().replace(/\s+/g, " ");
       if (s.length < 6 || s.length > 80) continue;
@@ -464,7 +467,7 @@ export function analyze({
   // --- 英文 / 技术词 ---
   const enTf = new Map();
   const enDf = new Map();
-  for (const m of filtered) {
+  for (const m of human) {
     const local = new Set();
     for (const w of m.text.match(/[A-Za-z][A-Za-z0-9_+#.-]{1,}/g) ?? []) {
       const k = w.toLowerCase();
@@ -504,8 +507,10 @@ export function analyze({
     scannedFiles,
     matchedSessions: new Set(filtered.map((m) => m.sessionId)).size,
     messages: filtered.length,
+    // 词频只基于真人写下的消息；按钮消息单独计数，不参与任何词榜
+    humanMessages: human.length,
     hanChars,
-    shortMessages: filtered.filter((m) => m.text.length <= 8).length,
+    shortMessages: human.filter((m) => m.text.length <= 8).length,
     autoContinuations,
     pmiApplied: pmiOn,
     versions: Object.fromEntries([...versions.entries()].sort((a, b) => a[0] - b[0])),
@@ -531,7 +536,9 @@ export function analyze({
 // ---------- 渲染 ----------
 
 export function renderReport(data) {
-  const pct = (c) => (data.messages ? `${((c / data.messages) * 100).toFixed(0)}%` : "–");
+  // 「覆盖消息」的分母统一用真人消息数——按钮消息不参与任何词榜，混进分母会稀释每个词
+  const denom = data.humanMessages || data.messages || 1;
+  const pct = (c) => (c === undefined ? "–" : `${((c / denom) * 100).toFixed(0)}%`);
   const verDesc = Object.entries(data.versions ?? {})
     .map(([v, n]) => `v${v} × ${n}`)
     .join("、");
@@ -546,6 +553,18 @@ export function renderReport(data) {
     `口径：只计用户本人输入（\`source.kind="user"\`），排除系统注入的上下文。表中「条数」= 出现在多少条消息里，「次数」= 总出现次数。`
   );
   md.push("");
+
+  // 按钮消息必须一开始就交代清楚：它占总消息量的比例很高，混进词榜会把头名放大好几倍
+  if (data.autoContinuations) {
+    const p = ((data.autoContinuations / data.messages) * 100).toFixed(0);
+    md.push(
+      `> **${data.autoContinuations} 条消息（${p}%）是界面「继续」按钮触发的**，正文由引擎写入，你只点了一下。`
+    );
+    md.push(
+      `> 它们不计入任何词榜（下面 **${data.humanMessages}** 条是真人写下的），否则「继续」会被凭空放大数倍，把真实用词挤出榜单。`
+    );
+    md.push("");
+  }
 
   if (data.skippedSubagents) {
     md.push(
@@ -615,7 +634,7 @@ export function renderReport(data) {
   }
 
   md.push(
-    `其中 ${data.shortMessages} 条消息不超过 8 个字符（${pct(data.shortMessages)} 的消息是"继续""好"这类短指令）；${data.autoContinuations} 条是界面「继续」按钮触发的自动续跑消息（已剥掉引擎附言，只留开头的"继续"）。`
+    `其中 ${data.shortMessages} 条不超过 8 个字符（${pct(data.shortMessages)} 是"好""不用"这类极短指令），说明你偏向短指令推进而非长篇描述。`
   );
   md.push("");
   if (data.withImage) {
