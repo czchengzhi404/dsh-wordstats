@@ -32,7 +32,9 @@ jobs:
           node-version: ${{ matrix.node }}
 
       - name: 跑测试
-        run: node --test test/
+        # 显式列出文件：`node --test test/` 在部分 Node 22 版本上会把目录当成
+        # 名为 test 的模块去 require，直接 MODULE_NOT_FOUND。
+        run: node --test test/smoke.test.mjs test/equivalence.test.mjs
 
       - name: CLI 冒烟（空会话目录不许崩）
         run: node scripts/dsh-wordstats.mjs --sessions ./does-not-exist --top 3

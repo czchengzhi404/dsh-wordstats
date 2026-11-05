@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node scripts/dsh-wordstats.mjs",
-    "test": "node --test test/",
+    "test": "node --test test/smoke.test.mjs test/equivalence.test.mjs",
     "test:local": "node test/smoke.test.mjs && node test/equivalence.test.mjs"
   },
   "files": [
