@@ -148,6 +148,10 @@ CI（`.github/workflows/test.yml`）在每次 push 和 PR 时把同一套测试�
 
 - 工作区路径解码（`--E-~732B~732B~--` → `E:\猫猫迷宫`）只按 Windows 目录形态验证过；Linux/macOS 上只影响路径显示，不影响统计数字。
 
+## 版本
+
+变更记录见 [CHANGELOG.md](CHANGELOG.md)。当前版本 `0.1.0`，遵循语义化版本。
+
 ## License
 
 MIT，见 [LICENSE](LICENSE)。
