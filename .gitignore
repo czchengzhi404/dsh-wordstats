@@ -3,6 +3,7 @@ report.md
 stats.json
 last-run.json
 out/
+.release-notes.md
 
 # 会话数据绝不能进仓库
 *.jsonl.zstd

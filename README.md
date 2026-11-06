@@ -1,6 +1,8 @@
 # 会话输入词频统计 · dsh-wordstats
 
 [![test](https://github.com/czchengzhi404/dsh-wordstats/actions/workflows/test.yml/badge.svg)](https://github.com/czchengzhi404/dsh-wordstats/actions/workflows/test.yml)
+[![release](https://img.shields.io/github/v/release/czchengzhi404/dsh-wordstats)](https://github.com/czchengzhi404/dsh-wordstats/releases)
+[![license](https://img.shields.io/github/license/czchengzhi404/dsh-wordstats)](LICENSE)
 
 > **隐私**：本工具**只读**本机会话日志，不联网、不上传、不修改任何文件。所有计算都在你机器上完成，输出只有你自己能看到的报告。
 
