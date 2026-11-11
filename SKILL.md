@@ -39,6 +39,7 @@ node scripts/dsh-wordstats.mjs --top 30 --out report.md
 | `--since YYYY-MM-DD` | 只看该日期之后的消息 |
 | `--top N` | 每个榜的条数，默认 30 |
 | `--out <file>` / `--json <file>` | 写 Markdown 报告 / 写原始统计 JSON |
+| `--html <file>` | 写可视化仪表盘：单个自包含 HTML，零外部资源，双击即开 |
 | `--include-subagents` | 连子代理会话一起算（默认排除） |
 
 零依赖，只需要 Node 22.15+（用到 `node:zlib` 内置的 zstd；低版本会直接提示升级）。
@@ -84,7 +85,7 @@ PMI 在小语料上系统性偏低（十几个字的语料里"继续"只有 0.69
 node test/smoke.test.mjs && node test/equivalence.test.mjs
 ```
 
-- **smoke（17 个）**：钉住每条口径——多帧解压、注入过滤、子代理排除、按钮消息不进词榜、图片消息、form 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码。
+- **smoke（20 个）**：钉住每条口径——多帧解压、注入过滤、子代理排除、按钮消息不进词榜、图片消息、form 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码，外加 HTML 仪表盘的零外链、空数据、XSS 转义。
 - **equivalence（2 个）**：保留一份最朴素的参考实现（全量解压、全量解析），与优化路径逐条比对。**为了快而少统计几条消息，报告看起来照样正常**，所以这条测试是性能改动的安全网，删不得。
 
 两个都用内存现造的脱敏 fixture，不碰真实会话。某个用例变红就说明口径被改坏了。

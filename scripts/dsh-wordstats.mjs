@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { pathToFileURL } from "node:url";
+import { renderHtml } from "./render-html.mjs";
 
 export const MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
 
@@ -670,8 +671,10 @@ export function main(argv = process.argv.slice(2)) {
   const sessionsRoot = argOf(argv, "sessions", join(homedir(), ".dsh", "sessions"));
   const outReport = argOf(argv, "out", null);
   const outJson = argOf(argv, "json", null);
+  const outHtml = argOf(argv, "html", null);
 
   let data;
+  const t0 = process.hrtime.bigint();
   try {
     data = analyze({
       sessionsRoot,
@@ -684,6 +687,7 @@ export function main(argv = process.argv.slice(2)) {
     console.error(`读取会话失败：${e.message}`);
     return 2;
   }
+  data.elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
 
   if (data.messages === 0 && data.unsupported.length) {
     const versions = [...new Set(data.unsupported.map((u) => u.version))].join(", ");
@@ -704,9 +708,12 @@ export function main(argv = process.argv.slice(2)) {
   const report = renderReport(data);
   if (outReport) writeFileSync(outReport, report, "utf8");
   if (outJson) writeFileSync(outJson, JSON.stringify(data, null, 2), "utf8");
+  if (outHtml) writeFileSync(outHtml, renderHtml(data), "utf8");
+
+  const wrote = [outReport, outJson, outHtml].filter(Boolean);
   console.log(
-    outReport
-      ? `report → ${outReport}  (${data.messages} msgs, ${data.matchedSessions} sessions)`
+    wrote.length
+      ? `${wrote.map((p) => `→ ${p}`).join("\n")}\n(${data.messages} msgs · ${data.matchedSessions} sessions · ${Math.round(data.elapsedMs)} ms)`
       : report
   );
   return 0;

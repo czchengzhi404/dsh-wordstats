@@ -36,6 +36,9 @@ node scripts/dsh-wordstats.mjs
 # 写到文件
 node scripts/dsh-wordstats.mjs --top 30 --out report.md
 
+# 生成可视化仪表盘（单个 HTML，双击就能看）
+node scripts/dsh-wordstats.mjs --html dashboard.html
+
 # 只看某个项目 / 某段时间
 node scripts/dsh-wordstats.mjs --workspace dshskill
 node scripts/dsh-wordstats.mjs --since 2026-10-01
@@ -48,7 +51,16 @@ node scripts/dsh-wordstats.mjs --since 2026-10-01
 | `--since YYYY-MM-DD` | 只看该日期之后的消息 |
 | `--top N` | 每个榜的条数，默认 30 |
 | `--out <file>` / `--json <file>` | 写 Markdown 报告 / 写原始统计 JSON |
+| `--html <file>` | 写可视化仪表盘（自包含 HTML） |
 | `--include-subagents` | 连子代理会话一起算（默认排除） |
+
+### 可视化仪表盘
+
+`--html` 生成一个 **28 KB 的单文件页面**：KPI 卡片、词频条形榜、月度趋势折线、消息构成堆叠条、工作区分布、短语与开口习惯、技术词云。
+
+- **零外部资源**。没有 CDN、没有 Google Fonts、没有图片文件——图表全是手写 SVG 和内联 CSS。断网、离线、发给别人都能打开，不会变成一堆空白方块。
+- **跟随系统深浅色**。`prefers-color-scheme` 自动切换，两套配色都做过对比度检查。
+- **可访问**。趋势图带 `role="img"` 与完整文字描述，数据点有 `<title>` 悬停提示，`prefers-reduced-motion` 下关闭动画。
 
 ### 当 DSH skill 用
 
@@ -118,13 +130,13 @@ DSH 界面的「继续」按钮也会落成一条 `kind="user"` 的消息，正�
 ## 测试
 
 ```bash
-npm run test:local            # 本地：直接跑两个测试文件（19 个用例）
+npm run test:local            # 本地：直接跑两个测试文件（22 个用例）
 npm test                      # 走 Node 测试运行器（CI 用这个）
 ```
 
 测试用**内存里现造的脱敏 fixture**（`test/fixture.mjs`），结构照抄真实会话，内容全是假的，仓库里不含任何真实对话。
 
-- `smoke.test.mjs`（17 个）钉住每条统计口径：多帧解压、注入过滤、子代理排除、**按钮消息不进词榜**、图片消息、`source.form` 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码。
+- `smoke.test.mjs`（20 个）钉住每条统计口径：多帧解压、注入过滤、子代理排除、**按钮消息不进词榜**、图片消息、`source.form` 哨兵、版本白名单、工作区解码、`--since`、CLI 退出码，外加 HTML 仪表盘的零外链、空数据、XSS 转义。
 - `equivalence.test.mjs`（2 个）钉住性能优化不改结果：优化路径与全量解压路径逐条比对。
 
 CI（`.github/workflows/test.yml`）在每次 push 和 PR 时把同一套测试跑在 **Linux + Windows × Node 22 / 24** 四组环境上，并额外验证一次空会话目录不许崩。之所以要跨平台跑：工作区路径解码是按 Windows 目录形态写的，Linux 上跑一遍才能确认统计逻辑没被平台假设绑住。

@@ -17,6 +17,7 @@ import {
   decodeWorkspace,
   main,
 } from "../scripts/dsh-wordstats.mjs";
+import { renderHtml } from "../scripts/render-html.mjs";
 import { buildFixture, MAIN_SESSION } from "./fixture.mjs";
 
 let root;
@@ -157,4 +158,67 @@ test("CLI：正常跑返回 0 并写出 JSON", () => {
 test("CLI：只有认不出的格式时返回非零并提示版本", () => {
   const code = main(["--sessions", root, "--workspace", "future"]);
   assert.equal(code, 2, "不能假装成功，让用户以为没说过话");
+});
+
+test("HTML 仪表盘：关键数据进图，且不依赖任何外部资源", () => {
+  const data = analyze({ sessionsRoot: root, top: 10 });
+  const html = renderHtml(data);
+  assert.ok(html.startsWith("<!DOCTYPE html>"), "应是完整 HTML 文档");
+  assert.ok(html.includes("真人消息"), "KPI 区要在");
+  // 关键数字必须真的嵌进页面，而不是只留个空壳
+  assert.ok(html.includes(String(data.messages).replace(/\B(?=(\d{3})+(?!\d))/g, ",")), "总消息数要出现");
+  assert.ok(html.includes("继续"), "词榜要出现");
+  assert.ok(html.includes("svg"), "趋势图用内联 SVG 画");
+  // 零依赖：不能有 CDN / 外链字体 / 外链脚本
+  assert.ok(!/<script\s+src=/i.test(html), "不能引外部脚本");
+  assert.ok(!/<link[^>]+href=["']?https?:/i.test(html), "不能引外部样式或字体");
+  assert.ok(!/https?:\/\/fonts\.googleapis/i.test(html), "不能用 Google Fonts");
+});
+
+test("HTML 仪表盘：空数据不崩，且不出现 undefined", () => {
+  const html = renderHtml({
+    scannedFiles: 0,
+    matchedSessions: 0,
+    messages: 0,
+    humanMessages: 0,
+    hanChars: 0,
+    shortMessages: 0,
+    autoContinuations: 0,
+    versions: {},
+    sourceKinds: {},
+    words: [],
+    phrases: [],
+    openers: [],
+    repeated: [],
+    enTerms: [],
+    byWorkspace: [],
+    byMonth: [],
+  });
+  assert.ok(html.includes("<!DOCTYPE html>"));
+  assert.ok(!html.includes("undefined"), "空数据时不能把 undefined 渲染出来");
+  assert.ok(html.includes("没有数据"), "空榜要给出空态文案");
+});
+
+test("HTML 仪表盘：用户内容要转义，不能注入标签", () => {
+  const html = renderHtml({
+    scannedFiles: 1,
+    matchedSessions: 1,
+    messages: 2,
+    humanMessages: 2,
+    hanChars: 4,
+    shortMessages: 0,
+    autoContinuations: 0,
+    versions: { 4: 1 },
+    sourceKinds: { user: 2 },
+    words: [{ term: "<script>alert(1)</script>", count: 2, docs: 2 }],
+    phrases: [],
+    openers: [],
+    repeated: [{ text: "<img src=x onerror=alert(1)>", count: 2 }],
+    enTerms: [],
+    byWorkspace: [],
+    byMonth: [],
+  });
+  assert.ok(!html.includes("<script>alert(1)</script>"), "词条里的标签必须被转义");
+  assert.ok(!html.includes("<img src=x"), "整句里的标签必须被转义");
+  assert.ok(html.includes("&lt;script&gt;"), "转义后应以实体形式出现");
 });

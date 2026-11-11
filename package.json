@@ -18,8 +18,7 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
-  ],
-  "engines": {
+  ],  "engines": {
     "node": ">=22.15.0"
   },
   "keywords": [
